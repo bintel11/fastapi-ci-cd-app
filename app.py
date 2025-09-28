@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
 from typing import List
 import json
@@ -6,9 +6,8 @@ import os
 
 app = FastAPI(title="CRUD App with Input/Output Files")
 
-# Input file (simulates DB)
+# Input and Output files
 INPUT_FILE = "data.json"
-# Output file (parsed data written here after each change)
 OUTPUT_FILE = "parsed_output.json"
 
 # Ensure files exist
@@ -17,12 +16,16 @@ for file in [INPUT_FILE, OUTPUT_FILE]:
         with open(file, "w") as f:
             json.dump([], f)
 
+# Pydantic models
 class Item(BaseModel):
     name: str = Field(..., min_length=1, max_length=50)
     description: str = Field(..., min_length=1, max_length=200)
     price: float = Field(..., gt=0)
 
-# Helpers
+class ItemResponse(Item):
+    id: int
+
+# Helper functions
 def read_data(file_path):
     with open(file_path, "r") as f:
         return json.load(f)
@@ -36,23 +39,23 @@ def sync_output():
     data = read_data(INPUT_FILE)
     write_data(OUTPUT_FILE, data)
 
-# CRUD Operations
+# CRUD Endpoints
 
-@app.post("/items/", response_model=Item)
+@app.post("/items/", response_model=ItemResponse, status_code=status.HTTP_201_CREATED)
 def create_item(item: Item):
     data = read_data(INPUT_FILE)
-    item_dict = item.dict()
+    item_dict = item.model_dump()
     item_dict["id"] = max([d.get("id",0) for d in data], default=0) + 1
     data.append(item_dict)
     write_data(INPUT_FILE, data)
-    sync_output()  # write parsed output
+    sync_output()
     return item_dict
 
-@app.get("/items/", response_model=List[Item])
+@app.get("/items/", response_model=List[ItemResponse])
 def read_items():
     return read_data(INPUT_FILE)
 
-@app.get("/items/{item_id}", response_model=Item)
+@app.get("/items/{item_id}", response_model=ItemResponse)
 def read_item(item_id: int):
     data = read_data(INPUT_FILE)
     for item in data:
@@ -60,12 +63,12 @@ def read_item(item_id: int):
             return item
     raise HTTPException(status_code=404, detail="Item not found")
 
-@app.put("/items/{item_id}", response_model=Item)
+@app.put("/items/{item_id}", response_model=ItemResponse)
 def update_item(item_id: int, item: Item):
     data = read_data(INPUT_FILE)
     for idx, existing_item in enumerate(data):
         if existing_item["id"] == item_id:
-            updated_item = item.dict()
+            updated_item = item.model_dump()
             updated_item["id"] = item_id
             data[idx] = updated_item
             write_data(INPUT_FILE, data)
@@ -73,7 +76,7 @@ def update_item(item_id: int, item: Item):
             return updated_item
     raise HTTPException(status_code=404, detail="Item not found")
 
-@app.delete("/items/{item_id}", status_code=204)
+@app.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_item(item_id: int):
     data = read_data(INPUT_FILE)
     for idx, existing_item in enumerate(data):
@@ -84,6 +87,7 @@ def delete_item(item_id: int):
             return {"message": "Deleted successfully"}
     raise HTTPException(status_code=404, detail="Item not found")
 
+# Run locally
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
