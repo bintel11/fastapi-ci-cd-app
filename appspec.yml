@@ -1,0 +1,12 @@
+version: 0.0
+os: linux
+files:
+  - source: my_app.zip
+    destination: /home/ec2-user/my_app
+hooks:
+  BeforeInstall:
+    - location: scripts/stop_old_app.sh
+      runas: ec2-user
+  AfterInstall:
+    - location: scripts/restart_app.sh
+      runas: ec2-user

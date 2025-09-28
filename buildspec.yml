@@ -1,0 +1,20 @@
+version: 0.2
+phases:
+  install:
+    commands:
+      - echo Installing dependencies...
+      - pip install -r requirements.txt
+  pre_build:
+    commands:
+      - echo Running unit tests...
+      - pytest tests
+  build:
+    commands:
+      - echo Packaging application...
+      - zip -r my_app.zip *
+  post_build:
+    commands:
+      - echo Build and tests completed successfully
+artifacts:
+  files:
+    - my_app.zip
